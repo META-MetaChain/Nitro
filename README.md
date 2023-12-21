@@ -14,7 +14,7 @@
 
 ## About metachain Nitro
 
-<img src="https://metachain-i.co/assets/metachain/logo_color.png" alt="Logo" width="80" height="80">
+<img src="https://metachain-i.co/logo.svg" alt="Logo" width="80" height="80">
 
 Nitro is the latest iteration of the metachain technology. It is a fully integrated, complete
 layer 2 optimistic rollup system, including fraud proofs, the sequencer, the token bridges, 
