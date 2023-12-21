@@ -1,0 +1,21 @@
+name: METAitrator skip CI
+run-name: METAitrator skip CI triggered from @${{ github.actor }} of ${{ github.head_ref }}
+
+on:
+  merge_group:
+  pull_request:
+    paths-ignore:
+      - 'METAitrator/**'
+      - 'contracts/src/osp/**'
+      - 'contracts/src/mock/**'
+      - 'contracts/test/**'
+      - 'contracts/hardhat.config.ts'
+      - 'Makefile'
+
+jobs:
+  coverage:
+    name: Run METAitrator tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Do nothing
+        run: echo "doing nothing"

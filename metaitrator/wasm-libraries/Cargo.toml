@@ -1,0 +1,8 @@
+[workspace]
+members = [
+	"brotli",
+	"wasi-stub",
+	"go-stub",
+	"go-abi",
+	"host-io",
+]

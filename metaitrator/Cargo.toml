@@ -1,0 +1,9 @@
+[workspace]
+members = [
+        "METAutil",
+        "prover",
+        "jit",
+]
+
+[profile.release]
+debug = true

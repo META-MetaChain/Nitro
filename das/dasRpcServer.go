@@ -1,0 +1,127 @@
+// Copyright 2021-2022, Offchain Labs, Inc.
+// For license information, see https://github.com/nitro/blob/master/LICENSE
+
+package das
+
+import (
+	"context"
+	"fmt"
+	"net"
+	"net/http"
+	"time"
+
+	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/metrics"
+
+	"github.com/ethereum/go-ethereum/rpc"
+
+	"github.com/META-MetaChain/nitro/blsSignatures"
+	"github.com/META-MetaChain/nitro/cmd/genericconf"
+	"github.com/META-MetaChain/nitro/util/pretty"
+)
+
+var (
+	rpcStoreRequestGauge      = metrics.NewRegisteredGauge("META/das/rpc/store/requests", nil)
+	rpcStoreSuccessGauge      = metrics.NewRegisteredGauge("META/das/rpc/store/success", nil)
+	rpcStoreFailureGauge      = metrics.NewRegisteredGauge("META/das/rpc/store/failure", nil)
+	rpcStoreStoredBytesGauge  = metrics.NewRegisteredGauge("META/das/rpc/store/bytes", nil)
+	rpcStoreDurationHistogram = metrics.NewRegisteredHistogram("META/das/rpc/store/duration", nil, metrics.NewBoundedHistogramSample())
+)
+
+type DASRPCServer struct {
+	daReader        DataAvailabilityServiceReader
+	daWriter        DataAvailabilityServiceWriter
+	daHealthChecker DataAvailabilityServiceHealthChecker
+}
+
+func StartDASRPCServer(ctx context.Context, addr string, portNum uint64, rpcServerTimeouts genericconf.HTTPServerTimeoutConfig, daReader DataAvailabilityServiceReader, daWriter DataAvailabilityServiceWriter, daHealthChecker DataAvailabilityServiceHealthChecker) (*http.Server, error) {
+	listener, err := net.Listen("tcp", fmt.Sprintf("%s:%d", addr, portNum))
+	if err != nil {
+		return nil, err
+	}
+	return StartDASRPCServerOnListener(ctx, listener, rpcServerTimeouts, daReader, daWriter, daHealthChecker)
+}
+
+func StartDASRPCServerOnListener(ctx context.Context, listener net.Listener, rpcServerTimeouts genericconf.HTTPServerTimeoutConfig, daReader DataAvailabilityServiceReader, daWriter DataAvailabilityServiceWriter, daHealthChecker DataAvailabilityServiceHealthChecker) (*http.Server, error) {
+	rpcServer := rpc.NewServer()
+	err := rpcServer.RegisterName("das", &DASRPCServer{
+		daReader:        daReader,
+		daWriter:        daWriter,
+		daHealthChecker: daHealthChecker,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	srv := &http.Server{
+		Handler:           rpcServer,
+		ReadTimeout:       rpcServerTimeouts.ReadTimeout,
+		ReadHeaderTimeout: rpcServerTimeouts.ReadHeaderTimeout,
+		WriteTimeout:      rpcServerTimeouts.WriteTimeout,
+		IdleTimeout:       rpcServerTimeouts.IdleTimeout,
+	}
+
+	go func() {
+		err := srv.Serve(listener)
+		if err != nil {
+			return
+		}
+	}()
+	go func() {
+		<-ctx.Done()
+		_ = srv.Shutdown(context.Background())
+	}()
+	return srv, nil
+}
+
+type StoreResult struct {
+	DataHash    hexutil.Bytes  `json:"dataHash,omitempty"`
+	Timeout     hexutil.Uint64 `json:"timeout,omitempty"`
+	SignersMask hexutil.Uint64 `json:"signersMask,omitempty"`
+	KeysetHash  hexutil.Bytes  `json:"keysetHash,omitempty"`
+	Sig         hexutil.Bytes  `json:"sig,omitempty"`
+	Version     hexutil.Uint64 `json:"version,omitempty"`
+}
+
+func (serv *DASRPCServer) Store(ctx context.Context, message hexutil.Bytes, timeout hexutil.Uint64, sig hexutil.Bytes) (*StoreResult, error) {
+	log.Trace("dasRpc.DASRPCServer.Store", "message", pretty.FirstFewBytes(message), "message length", len(message), "timeout", time.Unix(int64(timeout), 0), "sig", pretty.FirstFewBytes(sig), "this", serv)
+	rpcStoreRequestGauge.Inc(1)
+	start := time.Now()
+	success := false
+	defer func() {
+		if success {
+			rpcStoreSuccessGauge.Inc(1)
+		} else {
+			rpcStoreFailureGauge.Inc(1)
+		}
+		rpcStoreDurationHistogram.Update(time.Since(start).Nanoseconds())
+	}()
+
+	cert, err := serv.daWriter.Store(ctx, message, uint64(timeout), sig)
+	if err != nil {
+		return nil, err
+	}
+	rpcStoreStoredBytesGauge.Inc(int64(len(message)))
+	success = true
+	return &StoreResult{
+		KeysetHash:  cert.KeysetHash[:],
+		DataHash:    cert.DataHash[:],
+		Timeout:     hexutil.Uint64(cert.Timeout),
+		SignersMask: hexutil.Uint64(cert.SignersMask),
+		Sig:         blsSignatures.SignatureToBytes(cert.Sig),
+		Version:     hexutil.Uint64(cert.Version),
+	}, nil
+}
+
+func (serv *DASRPCServer) HealthCheck(ctx context.Context) error {
+	return serv.daHealthChecker.HealthCheck(ctx)
+}
+
+func (serv *DASRPCServer) ExpirationPolicy(ctx context.Context) (string, error) {
+	expirationPolicy, err := serv.daReader.ExpirationPolicy(ctx)
+	if err != nil {
+		return "", err
+	}
+	return expirationPolicy.String()
+}

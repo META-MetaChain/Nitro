@@ -1,0 +1,22 @@
+[submodule "go-ethereum"]
+	path = go-ethereum
+	url = https://github.com/META-MetaChain/go-ethereum.git
+[submodule "fastcache"]
+	path = fastcache
+	url = https://github.com/META-MetaChain/fastcache.git
+[submodule "METAitrator/wasm-libraries/soft-float/SoftFloat"]
+	path = METAitrator/wasm-libraries/soft-float/SoftFloat
+	url = https://github.com/META-MetaChain/SoftFloat.git
+[submodule "brotli"]
+	path = brotli
+	url = https://github.com/google/brotli.git
+[submodule "contracts"]
+	path = contracts
+	url = https://github.com/META-MetaChain/nitro-contracts.git
+	branch = develop
+[submodule "METAitrator/wasm-testsuite/testsuite"]
+	path = METAitrator/wasm-testsuite/testsuite
+	url = https://github.com/WebAssembly/testsuite.git
+[submodule "nitro-testnode"]
+	path = nitro-testnode
+	url = https://github.com/META-MetaChain/nitro-testnode.git
