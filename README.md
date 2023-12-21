@@ -1,7 +1,7 @@
 <br />
 <p align="center">
   <a href="https://metachain-i.co/">
-    <img src="https://metachain-i.co/assets/metachain/logo_color.png" alt="Logo" width="80" height="80">
+    <img src="https://metachain-i.co/logo.svg" alt="Logo" width="80" height="80">
   </a>
 
   <h3 align="center">metachain Nitro</h3>
